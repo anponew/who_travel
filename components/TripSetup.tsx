@@ -1,5 +1,6 @@
 'use client';
 import {useState} from 'react';
+import ActionIcon from './ActionIcon';
 import {cityPeriodsForTrip,shiftDate,type Trip,type CityPeriod} from '@/lib/model';
 export default function TripSetup({trip}:{trip?:Trip}){
   const[start,setStart]=useState(trip?.days[0].date??''),[end,setEnd]=useState(trip?.days.at(-1)!.date??'');
@@ -10,7 +11,7 @@ export default function TripSetup({trip}:{trip?:Trip}){
   return <><label>Название поездки<input name="title" defaultValue={trip?.title??''} required/></label><div className="trip-date-fields"><div className="pair"><label>Начало<input name="start" type="date" value={start} required onChange={e=>changeStart(e.target.value)}/></label><label>Конец<input name="end" type="date" value={end} min={start} required onChange={e=>changeEnd(e.target.value)}/></label></div><p className="muted date-hint">Последний день — день возвращения, без ночёвки.</p></div>
     <div className="schedule-heading"><h3>Города по маршруту</h3><p className="muted">Можно заполнить сейчас или позже.</p></div>
     <input type="hidden" name="periods" value={JSON.stringify(periods)}/>
-    {periods.map((p,i)=><section className="city-period" key={i} aria-label={`Город ${i+1}`}><div className="row"><strong>Город {i+1}</strong>{periods.length>1&&<button type="button" onClick={()=>setPeriods(rows=>rows.filter((_,n)=>n!==i))}>Убрать</button>}</div><label>Город<input value={p.city} placeholder="Например, Токио" onChange={e=>update(i,{city:e.target.value})}/></label><div className="pair"><label>Приезд<input type="date" value={p.start} min={start} max={end} onChange={e=>update(i,{start:e.target.value})}/></label><label>Выезд<input type="date" value={p.end} min={p.start||start} max={end} onChange={e=>update(i,{end:e.target.value})}/></label></div></section>)}
+    {periods.map((p,i)=><section className="city-period" key={i} aria-label={`Город ${i+1}`}><div className="row"><strong>Город {i+1}</strong>{periods.length>1&&<button type="button" className="danger icon-button" aria-label={`Удалить город ${p.city||i+1}`} title="Удалить город" onClick={()=>setPeriods(rows=>rows.filter((_,n)=>n!==i))}><ActionIcon kind="delete"/></button>}</div><label>Город<input value={p.city} placeholder="Например, Токио" onChange={e=>update(i,{city:e.target.value})}/></label><div className="pair"><label>Приезд<input type="date" value={p.start} min={start} max={end} onChange={e=>update(i,{start:e.target.value})}/></label><label>Выезд<input type="date" value={p.end} min={p.start||start} max={end} onChange={e=>update(i,{end:e.target.value})}/></label></div></section>)}
     <button type="button" className="outline" onClick={()=>setPeriods(rows=>[...rows,{city:'',start:rows.at(-1)?.end||start,end}])}>+ Добавить город</button>
   </>;
 }
