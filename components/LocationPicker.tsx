@@ -1,0 +1,6 @@
+'use client';
+import {useEffect,useRef} from 'react';
+export default function LocationPicker({lat,lng,onPick}:{lat:string;lng:string;onPick:(lat:string,lng:string)=>void}){const host=useRef<HTMLDivElement>(null);const callback=useRef(onPick);callback.current=onPick;
+useEffect(()=>{let cancelled=false;let dispose=()=>{};import('leaflet').then(L=>{if(cancelled||!host.current)return;const initial=lat!==''&&lng!=='';const map=L.map(host.current).setView(initial?[+lat,+lng]:[25,20],initial?14:2);L.tileLayer(process.env.NEXT_PUBLIC_MAP_TILE_URL||'https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);let marker=initial?L.circleMarker([+lat,+lng],{color:'#286ca9',radius:9,fillOpacity:.8}).addTo(map):null;map.on('click',e=>{const a=e.latlng.lat,b=((e.latlng.lng+180)%360+360)%360-180;if(marker)marker.setLatLng([a,b]);else marker=L.circleMarker([a,b],{color:'#286ca9',radius:9,fillOpacity:.8}).addTo(map);callback.current(a.toFixed(6),b.toFixed(6));});dispose=()=>map.remove();});return()=>{cancelled=true;dispose();}; // The map owns its viewport and marker while open.
+// eslint-disable-next-line react-hooks/exhaustive-deps
+},[]);return <div className="location-picker" ref={host} aria-label="Выбери место кликом по карте"/>;}

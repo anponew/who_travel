@@ -1,0 +1,1 @@
+export default function IdeaIcon(){return <svg className="idea-icon" aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6M10 21h4M8.6 14.5a6 6 0 1 1 6.8 0c-1 .7-1.4 1.5-1.4 3.5h-4c0-2-.4-2.8-1.4-3.5Z"/></svg>;}
