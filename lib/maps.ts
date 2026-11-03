@@ -24,4 +24,4 @@ export function googleRouteLinks(stops:RouteStop[]):string[]{
   while(start<queries.length-1){let end=Math.min(start+4,queries.length-1);let url='';for(;end>start;end--){const params=new URLSearchParams({api:'1',origin:queries[start],destination:queries[end]});if(end>start+1)params.set('waypoints',queries.slice(start+1,end).join('|'));url='https://www.google.com/maps/dir/?'+params.toString();if(url.length<=2048)break;}if(end===start)break;links.push(url);start=end;}
   return links;
 }
-export function routePlaces(places:Place[]){return places.filter(p=>mapHref(p));}
+export function routePlaces(places:Place[]){return places.filter(p=>p.kind!=='food'&&mapHref(p));}
