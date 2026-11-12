@@ -123,3 +123,63 @@ button{transition:background .15s,border-color .15s,box-shadow .15s}
 .app-shell>.back{align-self:flex-start;width:auto;text-align:left}
 .app-shell>.editor{width:100%;max-width:640px;align-self:center}
 .main-nav:has(+.section-content){margin-bottom:24px}.section-content>.row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;margin-bottom:20px}.section-content>.row+.food-city-group{margin-top:0}.saved-place-card>.saved-card-footer{margin-top:16px}@media(max-width:700px){.section-content>.row{grid-template-columns:minmax(0,1fr);align-items:start;gap:12px;margin-bottom:20px}.section-content>.row>.primary{justify-self:start;max-width:100%;white-space:normal}.main-nav:has(+.section-content){margin-bottom:24px}}
+
+/* Form controls must be able to shrink inside mobile date rows, including iOS. */
+.editor form,.editor label,.editor .pair,.city-period{min-width:0;max-width:100%}
+.editor input,.editor select,.editor textarea{box-sizing:border-box;max-width:100%}
+.editor input[type=date],.editor input[type=datetime-local],.editor input[type=time]{appearance:none;-webkit-appearance:none;display:block;width:100%;min-width:0;min-inline-size:0;min-height:46px;color-scheme:light}
+.editor input::-webkit-date-and-time-value{min-width:0;text-align:left}
+.editor input::-webkit-datetime-edit{min-width:0;padding:0}
+.app-shell>.trip-editor{max-width:760px;padding:0;border:0;background:transparent;border-radius:0}
+.trip-editor .city-period{background:var(--panel)}
+.editor [aria-invalid=true]{border-color:#b53f42}
+.field-error{font-size:12px;color:#b53f42;line-height:1.5}
+.form-error{padding:10px 12px;border:1px solid #efcbd0;background:#fff4f5;border-radius:8px;margin:0}
+.save-button{display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.save-spinner{width:16px;height:16px;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:loading-turn .7s linear infinite}
+.site-footer{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:16px;margin-top:40px;padding:16px 0 8px;font-size:12px}
+.site-footer>a{margin-right:auto}.site-footer>button{color:var(--dim);font-size:12px}
+@media(max-width:700px){.app-shell>.trip-editor{margin-top:16px}.trip-editor .city-period{padding:16px}.site-footer{gap:8px}.editor input,.editor select,.editor textarea{font-size:16px}}
+@media(prefers-reduced-motion:reduce){.save-spinner{animation-duration:1.5s}}
+
+.editor input::placeholder{color:var(--dim);opacity:.75}
+
+/* Shared corner radius for every editable form control. */
+input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select,textarea{border-radius:12px}
+
+.swipe-reveal{display:none}
+@media(max-width:700px){
+.swipe-surface{position:relative;overflow:hidden;touch-action:pan-y pinch-zoom}
+.swipe-surface>:not(.swipe-reveal){transform:translateX(var(--swipe-offset,0px));transition:transform .15s ease-out}
+.swipe-surface>.swipe-reveal{position:absolute;right:0;top:0;bottom:0;width:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:8px;background:#b83e48;color:white;font-size:12px;padding:8px;opacity:0;pointer-events:none}
+.swipe-surface[data-swipe-open]>.swipe-reveal{opacity:1;pointer-events:auto}
+.swipe-surface>.swipe-return{background:var(--accent)}
+}
+@media(prefers-reduced-motion:reduce){.swipe-surface>:not(.swipe-reveal){transition:none}}
+/* A row with no drag handle has two columns: confirmation must span both. */
+.events>.event:not(:has(>.reorder-handle)):has(.confirm-controls)>.event-actions{grid-column:1/-1;grid-row:2}
+.events>.event:has(.confirm-controls)>.event-actions{width:100%;min-width:0}
+.events>.event:has(.confirm-controls) .confirm-action{width:100%;max-width:none;justify-content:flex-start}
+.events>.event:has(.confirm-controls) .confirm-action>span{max-width:none;overflow-wrap:anywhere}
+
+.swipe-confirm{display:none}
+.swipe-confirm:has(.confirm-controls){display:block;grid-column:1/-1;flex-basis:100%;width:100%;padding-top:10px}
+.saved-file:has(.confirm-controls){flex-wrap:wrap}.saved-file>.confirm-action:has(.confirm-controls){flex-basis:100%;justify-content:flex-start}
+@media(max-width:700px){
+.swipe-surface>:not(.swipe-reveal){transition:transform .2s ease-out}
+.swipe-surface[data-swiping]>:not(.swipe-reveal){transition:none}
+.swipe-surface>.swipe-reveal{opacity:var(--swipe-progress,0);transform:translateX(calc(88px + var(--swipe-offset,0px)));transition:transform .2s ease-out,opacity .2s ease-out}
+.swipe-surface[data-swiping]>.swipe-reveal{transition:none}
+.swipe-surface .confirm-action>button,.swipe-surface .swipe-delete-launcher{display:none}
+.trip-card.swipe-surface>.trip-card-delete:not(:has(.confirm-controls)){display:none}
+.swipe-surface .confirm-action:has(.confirm-controls){width:100%;max-width:none;justify-content:flex-start}
+.swipe-surface:has(>.swipe-confirm .confirm-controls)>.swipe-reveal{display:none}
+}
+/* Full-height swipe actions; even spacing between consecutive activities. */
+@media(max-width:700px){
+.swipe-surface{min-height:88px}
+.swipe-surface>.swipe-reveal{right:8px;top:8px;bottom:8px;width:80px;height:auto;padding:12px 8px;gap:6px;border-radius:12px;line-height:18px;transform:translateX(calc(88px + var(--swipe-offset,0px)))}
+.events{gap:0}
+.events>.event.swipe-surface{padding-top:18px;padding-bottom:18px}
+.events>.day-transfer{margin-top:8px;margin-bottom:8px}
+}

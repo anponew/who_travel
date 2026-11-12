@@ -22,6 +22,7 @@ import ConfirmAction from './ConfirmAction';
 import SavedPlaceCard from './SavedPlaceCard';
 import ActionIcon from './ActionIcon';
 import ReorderHandle from './ReorderHandle';
+import SwipeDelete from './SwipeDelete';
 import PlanList from './PlanList';
 import LoadingTrips from './LoadingTrips';
 import IdeaIcon from './IdeaIcon';
@@ -36,6 +37,7 @@ export default function TravelApp() {
 const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,placeLabel,hotelNightsLabel,cityDatesLabel}=useI18n();
 
     const routeInput = useRef<HTMLInputElement>(null);
+    const settingsRef=useRef<HTMLElement>(null);
     const [importHelp,setImportHelp]=useState(false);
     const latestTrips = useRef<Trip[]>([]);
     const saveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -44,6 +46,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
     useEffect(()=>{const refresh=()=>setToday(localToday());refresh();const timer=setInterval(refresh,60000);document.addEventListener('visibilitychange',refresh);return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',refresh);};},[]);
 
     const [trips, setTrips] = useState<Trip[]>([]), [ready, setReady] = useState(false), [tripId, setTripId] = useState<string | null>(null), [dayId, setDayId] = useState(''), [area, setArea] = useState('route'), [tab, setTab] = useState('days'), [dayTab, setDayTab] = useState('plan'), [edit, setEdit] = useState<Edit | null>(null), [status, setStatus] = useState(''), [fatal, setFatal] = useState(''), [picker, setPicker] = useState(false), [settings, setSettings] = useState(false), [sharing, setSharing] = useState(false), [cityFilter, setCityFilter] = useState<string | null>(null);
+    useEffect(()=>{if(settings)settingsRef.current?.scrollIntoView({block:'center',behavior:'smooth'});},[settings]);
     useEffect(() => {
         let active = true;
         readTrips().then(async saved => {
@@ -65,7 +68,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
     }, []);
     useEffect(() => {
         if (!status) return;
-        const timer = setTimeout(() => setStatus(''), /^(Не удалось|Could not|Unable to)/.test(status) ? 9000 : 4000);
+        const timer = setTimeout(() => setStatus(''), /^(Не удалось|Could not|Unable to)/.test(status) ? 9000 : status==='Сохранено ✓' ? 2200 : 4000);
         return () => clearTimeout(timer);
     }, [status]);
     const trip = trips.find(t => t.id === tripId) ?? trips[0] ?? emptyTrip,
@@ -146,6 +149,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
             applyCityPeriods(t, JSON.parse(data.periods));
             await persist(current => [...current, t]);
             openTrip(t);
+            setStatus('Сохранено ✓');
             return;
         }
         if (edit.kind === 'flight') {
@@ -176,6 +180,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
                 throw error;
             }
             setEdit(null);
+            setStatus('Сохранено ✓');
             return;
         }
         if (edit.kind === 'upload') {
@@ -285,16 +290,27 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
             }
         });
         setEdit(null);
+        setStatus('Сохранено ✓');
+    }
+
+    async function deleteOwnedItem(kind:'hotel'|'flight',id:string){
+        const fileIds=trip.files.filter(file=>file.ownerId===id).map(file=>file.id);
+        await change(t=>{
+            if(kind==='hotel'){t.hotels=t.hotels.filter(h=>h.id!==id);t.days.forEach(d=>{if(d.hotelOverride===id)delete d.hotelOverride;});}
+            else t.flights=t.flights.filter(f=>f.id!==id);
+            t.files=t.files.filter(file=>file.ownerId!==id);
+        });
+        await Promise.all(fileIds.map(removeFile));
     }
 
     function filesFor(ownerId: string, showAdd = true) {
         return <Files showAdd={showAdd} files={trip.files.filter(f => f.ownerId === ownerId)}
-                      onAdd={() => openEdit({kind: 'upload', ownerId})} onRemove={id => run(async () => {
+                      onAdd={() => openEdit({kind: 'upload', ownerId})} onRemove={async id => {
             await change(t => {
                 t.files = t.files.filter(f => f.id !== id);
             });
             await removeFile(id);
-        })}/>;
+        }}/>;
     }
 
     function planHandle(item:PlanItem,index:number,list:PlanItem[]){
@@ -304,7 +320,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
             onMove={(target,placement)=>run(()=>change(t=>reorderDayPlan(t,day.id,item.id,target,placement)))}/>;
     }
     function placeCard(p:Place,index:number,list:PlanItem[]){
-        return <article className="event" key={p.id} id={'place-'+p.id} data-reorder-id={p.id}>
+        return <SwipeDelete key={p.id} label={p.source==='idea'?tr("Вернуть в идеи"):tr("Удалить")} returnToIdeas={p.source==='idea'}><article className="event" id={'place-'+p.id} data-reorder-id={p.id}>
             {planHandle({kind:'place',id:p.id,place:p},index,list)}{p.time&&<time>{p.time}</time>}
                 <div className="event-main">
                     <div className="event-heading">
@@ -327,23 +343,15 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
                             onClick={() => openEdit({kind: p.dayId ? 'place' : 'idea', id: p.id})}><ActionIcon
                         kind="edit"/></button>
                 </div>
-            </article>;}
+            </article></SwipeDelete>;}
             if(fatal)return <main><p role="alert">{message(fatal)}</p></main>;
             if(!ready)return <LoadingTrips/>;
             const cities=[...new
             Set(trip.days.flatMap(citiesForDay))],allCities=cityFilter===null||!cities.includes(cityFilter),currentCity=cityFilter!==null&&cities.includes(cityFilter)?cityFilter:(citiesForDay(day).includes(day.city)?day.city:citiesForDay(day)[0]??''),ideas=trip.places.filter(p=>!p.dayId&&p.kind!=='food'),food=trip.places.filter(p=>p.kind==='food'),available=trip.places.filter(p=>!p.dayId),hotels=trip.hotels.filter(h=>allCities||h.city===currentCity),plan=dayPlan(trip,day),items=plan.flatMap(item=>item.kind==='place'?[item.place]:[]),hotel=hotelForDay(trip,day),todayDay=trip.yearConfirmed?trip.days.find(d=>d.date===today):undefined,last=day.id===trip.days.at(-1)?.id;
             return <main className="app-shell">
                 <header className="app-header">
-                    <div className="header-right"><LanguageSwitch/>
-                        <button aria-label={tr("Данные и доступ")} onClick={() => setSettings(!settings)}>{tr("Данные и доступ")} </button>
-                    </div>
+                    <div className="header-right"><LanguageSwitch/></div>
                 </header>
-                {settings && <section className="settings sheet">
-                    <div className="row"><h2>{tr("Данные и доступ")}</h2>
-                        <button onClick={() => setSettings(false)}>{tr("Закрыть")}</button>
-                    </div>
-                    <div className="data-access-copy"><p><strong>{tr("Только у тебя.")}</strong> {tr("Поездки и документы хранятся в этом браузере на этом устройстве. Они не отправляются на GitHub и не видны другим посетителям сайта. Очистка данных сайта удалит их.")}</p><p><strong>{tr("Поделиться маршрутом.")}</strong> {tr("Скачай файл для просмотра или отправь файл для редактирования. Друг сможет импортировать его в who travel и менять свою копию. Изменения между вашими копиями не синхронизируются — для передачи обновлений нужна новая выгрузка.")}</p><p className="muted">{tr("В выгрузку входят названия, описания мест и ссылки. Документы и личные заметки дня не включаются. Ссылки на карты открываются в отдельной вкладке.")}</p></div>
-                </section>}
                 {edit ? <Editor contextCity={currentCity} key={`${edit.kind}-${edit.id ?? ''}-${edit.focus ?? ''}`}
                                 edit={edit} trip={trip} day={day}
                                 onRemoveFromDay={edit.id && trip.places.some(p => p.id === edit.id && p.dayId && p.source === 'idea') ? async () => {
@@ -396,7 +404,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
                     <div className="trip-grid">{!trips.length &&
                         <div className="empty empty-home"><span className="empty-icon">✈</span><h2>{tr("Куда отправимся?")}</h2>
                             <p className="muted">{tr("Создай поездку и добавь в неё свои планы.")}</p></div>}{trips.map(t =>
-                        <article className="trip-card" key={t.id}>
+                        <SwipeDelete key={t.id} label={tr("Удалить")}><article className="trip-card">
                             <button className="trip-card-open" aria-label={tr("Открыть поездку «{0}»",{"0":(t.title)})} onClick={() => openTrip(t)}>
                                 <div className="trip-card-top"><span className="trip-icon">{'✈'}</span><span
                                     className="muted">{dayCountLabel(t.days.length)} · {nightLabel(t.days.length - 1)}</span>
@@ -413,7 +421,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
                                                                                  await persist(current => current.filter(x => x.id !== t.id), tr("Поездка удалена."));
                                                                                  await Promise.all(t.files.map(f => removeFile(f.id)));
                                                                              }}/></div>
-                        </article>)}</div>
+                        </article></SwipeDelete>)}</div>
                 </> : <>
                     <button className="back" onClick={() => setTripId(null)}>{tr("← Мои поездки")}</button>
                     <div className="row trip-heading">
@@ -487,7 +495,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
                                     <PlanList>{plan.length?plan.map((entry,index)=>{
                                         if(entry.kind==='place')return placeCard(entry.place,index,plan);
                                         const f=entry.transfer;
-                                        return <article className="day-transfer" key={f.id} data-reorder-id={f.id}>
+                                        return <SwipeDelete key={f.id} label={tr("Удалить")} question={tr("Удалить эту запись?")} onDelete={()=>deleteOwnedItem('flight',f.id)}><article className="day-transfer" data-reorder-id={f.id}>
                                             {planHandle(entry,index,plan)}
                                             <div className="transfer-info"><TransferDetails transfer={f} yearConfirmed={trip.yearConfirmed}/></div>
                                             <div className="transfer-controls">
@@ -495,7 +503,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
                                                 <button className="icon-button" title={tr("Редактировать переезд")} aria-label={tr("Редактировать переезд")} onClick={()=>openEdit({kind:'flight',id:f.id})}><ActionIcon kind="edit"/></button>
                                             </div>
                                             {trip.files.some(file=>file.ownerId===f.id)&&<div className="transfer-files">{filesFor(f.id,false)}</div>}
-                                        </article>;
+                                        </article></SwipeDelete>;
                                     }):<div className="empty compact">{tr("День пока свободен. С чего начнём?")}</div>}</PlanList>
                                     <div className="row add-actions">
                                         <button onClick={() => openEdit({kind: 'place'})}>{tr("+ Добавить место")}</button>
@@ -541,7 +549,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
                                         <div className="row"><h3>{tr("Заметки")}</h3>
                                             <button className="icon-button" title={tr("Добавить заметку")} aria-label={tr("Добавить заметку")} onClick={() => openEdit({kind: 'note'})}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
                                         </div>
-                                        {day.notes.length ? day.notes.map(n => <div className="note-row" key={n.id}>
+                                        {day.notes.length ? day.notes.map(n => <SwipeDelete key={n.id} label={tr("Удалить")}><div className="note-row">
                                             <div className="note-entry"><MarkdownNote text={n.text}/></div>
                                             <div className="event-actions note-actions">
                                             <ConfirmAction iconOnly label={tr("Удалить заметку")} question={tr("Удалить заметку?")}
@@ -551,14 +559,14 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
                                                     onClick={() => openEdit({kind: 'note', id: n.id})}><ActionIcon
                                                 kind="edit"/></button>
                                             </div>
-                                        </div>) : <p className="muted">{tr("Что важно помнить в этот день?")}</p>}</section>
+                                        </div></SwipeDelete>) : <p className="muted">{tr("Что важно помнить в этот день?")}</p>}</section>
                                 </> : <><p className="muted">{tr("Билеты, скриншоты и документы на")} {dateLabel(day.date)}</p>{filesFor(day.id)}</>}
                             </section>
                         </div> : <section className="section-content">
                             <div className="row"><h2>{allCities ? tr("Отели всей поездки") : tr("Отели · {0}",{"0":(currentCity || tr('Без города'))})}</h2>
                                 <button className="primary" onClick={() => openEdit({kind: 'hotel'})}>{tr("+ Добавить отель")} </button>
                             </div>
-                            {hotels.length ? hotels.map(h => <article className="sheet hotel-card" key={h.id}>
+                            {hotels.length ? hotels.map(h => <SwipeDelete key={h.id} label={tr("Удалить")} question={tr("Удалить эту запись?")} onDelete={()=>deleteOwnedItem('hotel',h.id)}><article className="sheet hotel-card">
                                     <div className="row">
                                         <div><h3>{h.name}</h3><p className="muted">{h.address}</p></div>
                                         <button className="icon-button" title={tr("Редактировать отель")}
@@ -574,7 +582,7 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
                                             focus: 'mapLink'
                                         })}>{tr("+ Добавить ссылку на карту")}</button>}{safeLink(h.link) &&
                                         <a className="map-link" href={safeLink(h.link)} target="_blank" rel="noreferrer">{tr("Ссылка на отель ↗")}</a>}</div>
-                                    <h4>{tr("Ваучеры и подтверждения")}</h4>{filesFor(h.id)}</article>) :
+                                    <h4>{tr("Ваучеры и подтверждения")}</h4>{filesFor(h.id)}</article></SwipeDelete>) :
                                 <div className="empty"><h2>{tr("Где остановимся?")}</h2><p className="muted">{tr("Добавь отель с датами заезда и выезда.")}</p></div>}</section>}</>}
                     {area === 'ideas' && <section className="section-content">
                         <div className="row"><h2>{tr("Идеи всей поездки")}</h2>
@@ -602,12 +610,19 @@ const {tr,message,language,dayCountLabel,dateLabel,dayDateLabel,nightLabel,place
                                                                                                 onDelete={() => deletePlanItem('place',p.id)}/>)}</section>) :
                             <div className="empty"><h2>{tr("Где поедим?")}</h2><p className="muted">{tr("Сохраняй кафе и рестораны по городам. Добавить их в план дня можно позже.")}</p></div>}</section>}
                     {area === 'overview' &&
-                        <TripOverview trip={trip} onAttach={id => openEdit({kind: 'upload', ownerId: id})}
+                        <TripOverview trip={trip} onDelete={id=>deleteOwnedItem('flight',id)} onAttach={id => openEdit({kind: 'upload', ownerId: id})}
                                       onEdit={id => openEdit({kind: 'flight', id})}
                                       onConfigure={() => openEdit({kind: 'cities'})}
                                       onAdd={() => openEdit({kind: 'flight'})} filesFor={filesFor}/>}
                 </>}
-                {!tripId&&!edit&&<footer className="home-footer"><a href="https://t.me/who_travel" target="_blank" rel="noopener noreferrer">{tr("who travel в Telegram ↗")}</a></footer>}
+                <footer className="site-footer">{!tripId&&!edit&&<a href="https://t.me/who_travel" target="_blank" rel="noopener noreferrer">{tr("who travel в Telegram ↗")}</a>}<button aria-expanded={settings} aria-controls="data-access" onClick={()=>setSettings(!settings)}>{tr("Данные и доступ")}</button></footer>
+                {settings && <section id="data-access" className="settings sheet" ref={settingsRef}>
+                    <div className="row"><h2>{tr("Данные и доступ")}</h2>
+                        <button onClick={() => setSettings(false)}>{tr("Закрыть")}</button>
+                    </div>
+                    <div className="data-access-copy"><p><strong>{tr("Только у тебя.")}</strong> {tr("Поездки и документы хранятся в этом браузере на этом устройстве. Они не отправляются на GitHub и не видны другим посетителям сайта. Очистка данных сайта удалит их.")}</p><p><strong>{tr("Поделиться маршрутом.")}</strong> {tr("Скачай файл для просмотра или отправь файл для редактирования. Друг сможет импортировать его в who travel и менять свою копию. Изменения между вашими копиями не синхронизируются — для передачи обновлений нужна новая выгрузка.")}</p><p className="muted">{tr("В выгрузку входят названия, описания мест и ссылки. Документы и личные заметки дня не включаются. Ссылки на карты открываются в отдельной вкладке.")}</p></div>
+                </section>}
+
                 <div className="notice-region" aria-live="polite">{undo&&<UndoNotice key={undo.id} action={undo} onClose={()=>setUndo(current=>current?.id===undo.id?null:current)}/ >}{status &&
                     <div className={'notice ' + (/^(Не удалось|Could not|Unable to)/.test(status) ? 'notice-error' : '')} role="status">
                         <span>{message(status)}</span>

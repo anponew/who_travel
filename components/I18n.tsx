@@ -14,7 +14,7 @@ export function useI18n(){
   const value=useContext(Context),language=value.language;
   return {...value,
     tr:(key:string,values?:Record<string,string|number>)=>translate(language,key,values),
-    message:(text:string)=>translateMessage(language,text),
+    message:(text:string)=>translateMessage(language,text).replace(/(?<!\.)[.。]$/u,''),
     dateLabel:(date:string,year=false)=>model.dateLabel(date,year,language),
     dayDateLabel:(date:string,yearConfirmed=true)=>model.dayDateLabel(date,yearConfirmed,language),
     dayCountLabel:(count:number)=>language==='en'?`${count} ${count===1?'day':'days'}`:`${count} ${count%10===1&&count%100!==11?'день':count%10>=2&&count%10<=4&&(count%100<12||count%100>14)?'дня':'дней'}`,

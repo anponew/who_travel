@@ -1,6 +1,8 @@
 'use client';
 import {useI18n} from './I18n';
 import {useLayoutEffect, useRef, useState} from 'react';
+import {tripFormErrors} from '@/lib/trip-form';
+import {localToday} from '@/lib/today';
 import TripSetup from './TripSetup';
 import NoteInput from './NoteInput';
 import TransferTiming from './TransferTiming';
@@ -40,6 +42,9 @@ export default function Editor({
 const {tr,message,dateLabel,dayDateLabel}=useI18n();
 
     const [error, setError] = useState(''), [busy, setBusy] = useState(false), [files, setFiles] = useState<File[]>([]), [deleting, setDeleting] = useState(false);
+    const [fieldErrors,setFieldErrors]=useState<Record<string,string>>({});
+    const errorRef=useRef<HTMLParagraphElement>(null);
+    useLayoutEffect(()=>{if(error&&!Object.keys(fieldErrors).length)errorRef.current?.scrollIntoView({block:'center',behavior:'smooth'});},[error,fieldErrors]);
     const submitting = useRef(false);
     const transferFileInput = useRef<HTMLInputElement>(null);
     const editorRef = useRef<HTMLElement>(null);
@@ -72,14 +77,32 @@ const {tr,message,dateLabel,dayDateLabel}=useI18n();
 
     const dayOptions = trip.days.map(d => <option key={d.id}
                                                   value={d.id}>{dayDateLabel(d.date, trip.yearConfirmed)} · {d.city || d.title}</option>);
-    return <section ref={editorRef} className={`editor sheet editor-${edit.kind}`}>
+    return <section ref={editorRef} className={`editor ${['trip','cities'].includes(edit.kind)?'trip-editor':'sheet'} editor-${edit.kind}`}>
         <button className="back" disabled={busy} onClick={onCancel}>{tr("← Назад")}</button>
         <h2>{titles[edit.kind]}</h2>
-        <form onSubmit={async e => {
+        <form noValidate aria-busy={busy} onChange={e=>{setError('');setFieldErrors({});e.currentTarget.querySelectorAll('[aria-invalid=true]').forEach(control=>control.removeAttribute('aria-invalid'));}} onSubmit={async e => {
             e.preventDefault();
             if (submitting.current) return;
             setError('');
             const data = Object.fromEntries(Array.from(new FormData(e.currentTarget)).filter(([, value]) => typeof value === 'string').map(([key, value]) => [key, String(value).trim()])) as Record<string, string>;
+            const form=e.currentTarget;
+            const errors:Record<string,string>={};
+            if(['trip','cities'].includes(edit.kind))Object.assign(errors,tripFormErrors(data.title,data.start,data.end,JSON.parse(data.periods),edit.kind==='trip'?localToday():''));
+            for(const control of Array.from(form.elements)){
+                if(!(control instanceof HTMLInputElement||control instanceof HTMLSelectElement||control instanceof HTMLTextAreaElement)||!control.name||control.validity.valid||errors[control.name])continue;
+                errors[control.name]=control.validity.valueMissing?tr('Заполни это поле.'):control.validity.typeMismatch?tr('Введи корректную ссылку.'):tr('Проверь значение поля.');
+            }
+            setFieldErrors(errors);
+            for(const control of Array.from(form.elements)){
+                if(!(control instanceof HTMLInputElement||control instanceof HTMLSelectElement||control instanceof HTMLTextAreaElement))continue;
+                if(errors[control.name])control.setAttribute('aria-invalid','true');else control.removeAttribute('aria-invalid');
+            }
+            if(Object.keys(errors).length){
+                setError(tr('Проверь выделенные поля.'));
+                const first=form.elements.namedItem(Object.keys(errors)[0]);
+                if(first instanceof HTMLElement){first.focus();first.scrollIntoView({block:'center',behavior:'smooth'});}
+                return;
+            }
             if (data.link && !safeLink(data.link)) {
                 setError(tr("Ссылка должна начинаться с https:// или http://"));
                 return;
@@ -99,7 +122,7 @@ const {tr,message,dateLabel,dayDateLabel}=useI18n();
             }
         }}>
             {(edit.kind === 'trip' || edit.kind === 'cities') && <TripSetup
-                trip={edit.kind === 'cities' ? trip : undefined}/>}{edit.kind === 'year' && <>{field(tr("Год"), 'year', '', 'number', true)}
+                trip={edit.kind === 'cities' ? trip : undefined} errors={fieldErrors} onScheduleChange={()=>{setError('');setFieldErrors({});}}/>}{edit.kind === 'year' && <>{field(tr("Год"), 'year', '', 'number', true)}
             <p className="muted">{tr("В исходном маршруте год не указан. Даты и периоды отелей сохранят месяц и число.")}</p></>}
             {edit.kind === 'day' && <>{field(tr("Название дня"), 'title', day.title, 'text', true)}{field(tr("Город ночёвки"), 'city', day.city)}
                 <datalist id="cities">{[...new Set(trip.days.map(d => d.city))].map(c => <option
@@ -166,7 +189,7 @@ const {tr,message,dateLabel,dayDateLabel}=useI18n();
                                                                                                      onChange={e => setFiles(Array.from(e.target.files ?? []))}/></label>
                 <p className="muted">{tr("До 20 МБ на файл. Файлы сохраняются только в этом браузере.")}</p>{files.map(f => <p
                     className="filename" key={f.name}>{f.name}</p>)}</>}
-            {error && <p className="error" role="alert">{message(error)}</p>}
+            {error && <p ref={errorRef} className="error form-error" role="alert">{message(error).replace(/[.。]+$/,'')}</p>}
             <div className="editor-footer">{onRemoveFromDay &&
                 <button type="button" className="outline" disabled={busy} onClick={async () => {
                     if (submitting.current) return;
@@ -198,7 +221,7 @@ const {tr,message,dateLabel,dayDateLabel}=useI18n();
                           onClick={() => setDeleting(true)}>{['place', 'idea', 'food'].includes(edit.kind) ? tr("Удалить навсегда") : tr("Удалить")}</button>}</div>}
                 <div className="form-actions">
                     <button type="button" disabled={busy} onClick={onCancel}>{tr("Отмена")}</button>
-                    <button className="primary save-button" disabled={busy}>{busy ? tr("Сохраняем…") : tr("Сохранить")}</button>
+                    <button className="primary save-button" disabled={busy}>{busy&&<span className="save-spinner" aria-hidden="true"/>}{busy ? tr("Сохраняем…") : tr("Сохранить")}</button>
                 </div>
             </div>
         </form>
